@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.0.35
+
+- labels Goodebot update choices with clear version/build numbers before the source name
+- limits install/update source scanning to Goodebot Dev local lanes plus shared GitHub releases, so random old Mac zips no longer appear
+- checks shared Goodebot GitHub releases each time the picker opens and sorts newest builds first
+- removes the old in-app Updates tab from Goodebot Settings
+- expands Goodebot profile scanning to find saved profiles and embedded app profiles without returning random JSON files
+
 ## 0.0.34
 
 - makes the Goodebot updater choose both the target app and the exact build zip/app to install
