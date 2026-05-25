@@ -1,11 +1,18 @@
 # Changelog
 
+## 0.0.33
+
+- scans the Mac for Goodebot apps before updating so the user can choose the exact app copy VS Code should replace
+- writes the chosen update target into the Legacy migration file and backs up that selected app before replacement
+- replaces the placeholder credits with transparent VEX Robotics and `Bansextus(343K);` logo assets
+- removes the visible color-label chips from the Studio credits card
+
 ## 0.0.32
 
 - moves Goodebot updating into Goodecode Studio with workspace path, install status, backup, personalization, and Legacy migration file output
 - updates visible team branding to `Bansextus(343K);`
-- lightens the Studio blues and adds the Goodecode blue, Goodebot yellow, and Goodebot Dev green identity colors
-- adds the VEX/bansextus(343K): credit section to Goodecode Studio
+- lightens the Studio blues and adds the refreshed blue, yellow, and green accent palette
+- adds the VEX/Bansextus(343K): credit section to Goodecode Studio
 
 ## 0.0.31
 

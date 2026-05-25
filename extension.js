@@ -27,6 +27,20 @@ const GOODEBOT_APP_NAMES = ["Goodebot.app"];
 const GOODEBOT_INSTALLER_NAMES = ["Goodebot Installer.app"];
 const GOODEBOT_LOCAL_REPO = path.join(os.homedir(), "Documents", "GitHub", "Goodebot");
 const GOODEBOT_DOWNLOAD_REPO = path.join(os.homedir(), "Documents", "GitHub", "Goodebot-Downloads");
+const GOODEBOT_APP_SCAN_ROOTS = [
+  path.join(os.homedir(), "Applications"),
+  path.join(os.homedir(), "Desktop"),
+  path.join(os.homedir(), "Documents"),
+  path.join(os.homedir(), "Downloads"),
+  path.join(os.homedir(), "Library", "CloudStorage"),
+  path.join(os.homedir(), "Library", "Mobile Documents"),
+  path.join(os.homedir(), "GoodebotDevBuilds"),
+  "/Applications",
+  "/Users/Shared",
+  "/Volumes",
+  GOODEBOT_LOCAL_REPO,
+  GOODEBOT_DOWNLOAD_REPO,
+];
 const GOODECODE_CONFIG_DIR = ".goodecode";
 const GOODECODE_RUNTIME_DIR = "runtime";
 const GOODECODE_RUNTIME_FILE_NAME = "goodebot_runtime.txt";
@@ -776,7 +790,9 @@ function renderStudioHtml(webview, extensionUri) {
   const nonce = createNonce();
   const state = collectStudioState();
   const iconUri = imageDataUri(path.join(__dirname, "media", "goodecode-icon.png"), "image/png");
-  const bansextusUri = imageDataUri(path.join(__dirname, "media", "bansextus-343k.jpeg"), "image/jpeg");
+  const vexUri = imageDataUri(path.join(__dirname, "media", "vex-robotics-logo.svg"), "image/svg+xml");
+  const bansextusUri = imageDataUri(path.join(__dirname, "media", "bansextus-343k-logo.png"), "image/png")
+    || imageDataUri(path.join(__dirname, "media", "bansextus-343k.jpeg"), "image/jpeg");
   const workspaceBadge = state.workspaceRoot ? state.workspaceName : "Open a folder to begin";
   const installBadge = state.goodebotInstalled
     ? "Goodebot installed"
@@ -1096,7 +1112,7 @@ function renderStudioHtml(webview, extensionUri) {
       .credit-row {
         display: flex;
         align-items: center;
-        gap: 14px;
+        gap: 22px;
         flex-wrap: wrap;
       }
       .credit-mark {
@@ -1113,26 +1129,19 @@ function renderStudioHtml(webview, extensionUri) {
         font-weight: 900;
         letter-spacing: 0.08em;
       }
-      .credit-mark.vex {
-        color: #ffffff;
-        background: linear-gradient(135deg, rgba(78, 215, 255, 0.22), rgba(24, 83, 156, 0.34));
-        border-color: rgba(78, 215, 255, 0.28);
-      }
       .credit-logo {
-        width: 54px;
-        height: 54px;
-        border-radius: 14px;
-        object-fit: cover;
-        background: rgba(0, 0, 0, 0.3);
-        border: 1px solid rgba(86, 227, 159, 0.28);
+        display: block;
+        object-fit: contain;
+        background: transparent;
+        border: 0;
       }
-      .tri-chip.green {
-        background: rgba(86, 227, 159, 0.13);
-        border-color: rgba(86, 227, 159, 0.34);
+      .credit-logo.vex {
+        width: min(210px, 45vw);
+        max-height: 78px;
       }
-      .tri-chip.yellow {
-        background: rgba(248, 203, 95, 0.12);
-        border-color: rgba(248, 203, 95, 0.34);
+      .credit-logo.bansextus {
+        width: min(360px, 74vw);
+        max-height: 96px;
       }
       .install-block.warning {
         border-color: rgba(248, 203, 95, 0.25);
@@ -1225,15 +1234,10 @@ function renderStudioHtml(webview, extensionUri) {
         <div class="eyebrow">Credits</div>
         <h2>Robotics Platform</h2>
         <div class="credit-row">
-          <div class="credit-mark vex" aria-label="VEX">VEX</div>
-          ${bansextusUri ? `<img class="credit-logo" src="${escapeAttribute(bansextusUri)}" alt="bansextus(343K):" />` : `<div class="credit-mark">343K</div>`}
-          <div class="chip-row">
-            <span class="chip">Goodecode blue</span>
-            <span class="chip tri-chip yellow">Goodebot yellow</span>
-            <span class="chip tri-chip green">Goodebot Dev green</span>
-          </div>
+          ${vexUri ? `<img class="credit-logo vex" src="${escapeAttribute(vexUri)}" alt="VEX Robotics" />` : `<div class="credit-mark" aria-label="VEX Robotics">VEX</div>`}
+          ${bansextusUri ? `<img class="credit-logo bansextus" src="${escapeAttribute(bansextusUri)}" alt="Bansextus(343K);" />` : `<div class="credit-mark">343K</div>`}
         </div>
-        <p class="muted">VEX and V5 are trademarks of VEX Robotics. Goodebot and Goodecode are independent tools by bansextus(343K):.</p>
+        <p class="muted">VEX and V5 are trademarks of VEX Robotics. Goodebot and Goodecode are independent tools by Bansextus(343K):.</p>
       </section>
 
       <section class="card">
@@ -1331,14 +1335,13 @@ function renderInstallPageCard(state) {
   const updateLine = state.goodebotInstalled
     ? `<div class="muted small">Installed build: ${escapeHtml(goodebotBuildLabel(state.goodebotInstalledBuild))}</div>`
     : "";
-  const updateButton = state.goodebotInstalled
-    ? `<button data-command="updateGoodebot">Update Goodebot</button>`
-    : "";
+  const updateButton = `<button data-command="updateGoodebot">Scan + Update Goodebot</button>`;
   const goodecodePath = state.goodecodeRoot || (state.workspaceRoot ? path.join(state.workspaceRoot, GOODECODE_CONFIG_DIR) : "");
   const preservationRows = [
     ["Workspace", state.workspaceRoot || "No VS Code folder open"],
     ["Goodecode path", goodecodePath || "Open a folder to create .goodecode files"],
     ["Installed app", state.goodebotInstalled?.path || "Not installed"],
+    ["Update target", "Choose after scanning this Mac"],
     ["Legacy file", state.workspaceRoot ? path.join(state.workspaceRoot, GOODECODE_CONFIG_DIR, "LegacyV3.xx.json") : "Created after opening a folder"],
   ]
     .map(([label, value]) => `
@@ -1674,7 +1677,7 @@ function spotlightMatchesByName(fileNames, searchRoots) {
         const stdout = childProcess.execFileSync(
           "mdfind",
           ["-onlyin", searchRoot, `kMDItemFSName == "${fileName}"c`],
-          { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }
+          { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 5000 }
         );
         for (const line of stdout.split(/\r?\n/)) {
           const trimmed = line.trim();
@@ -1700,6 +1703,111 @@ function candidateDescriptor(candidatePath) {
     label: path.basename(candidatePath),
     kind: isInstaller ? "installer" : isZip ? "zip" : "app",
   };
+}
+
+function goodebotAppScanRoots(workspaceRoot = "") {
+  return uniqueStrings([
+    workspaceRoot || "",
+    ...GOODEBOT_APP_SCAN_ROOTS,
+  ]).filter((candidate) => pathExists(candidate));
+}
+
+function isGoodebotAppBundle(candidatePath) {
+  if (path.basename(candidatePath) !== "Goodebot.app") {
+    return false;
+  }
+  return pathExists(path.join(candidatePath, "Contents", "Info.plist"));
+}
+
+function goodebotAppDescriptor(appPath) {
+  const buildInfo = {
+    ...readGoodebotBuildInfo(appPath),
+    ...readGoodebotBundleInfo(appPath),
+  };
+  return {
+    ...candidateDescriptor(appPath),
+    kind: "app",
+    modifiedTime: candidateModifiedTime(appPath),
+    buildInfo,
+  };
+}
+
+function findGoodebotAppsWithSpotlight(searchRoots) {
+  if (process.platform !== "darwin") {
+    return [];
+  }
+
+  const matches = [...spotlightMatchesByName(GOODEBOT_APP_NAMES, searchRoots)];
+  try {
+    const stdout = childProcess.execFileSync(
+      "mdfind",
+      ['kMDItemFSName == "Goodebot.app"c'],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 8000 }
+    );
+    for (const line of stdout.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (trimmed) {
+        matches.push(trimmed);
+      }
+    }
+  } catch {
+    // Spotlight can be disabled or unavailable. The filesystem scan below is the fallback.
+  }
+  return matches;
+}
+
+function findGoodebotAppsWithFind(searchRoots) {
+  const matches = [];
+  for (const searchRoot of searchRoots) {
+    try {
+      const stdout = childProcess.execFileSync(
+        "/usr/bin/find",
+        [
+          searchRoot,
+          "-path", "*/Library/*", "-prune",
+          "-o", "-path", "*/.Trash/*", "-prune",
+          "-o", "-path", "*/node_modules/*", "-prune",
+          "-o", "-path", "*/.git/*", "-prune",
+          "-o", "-name", "Goodebot.app", "-type", "d", "-print", "-prune",
+        ],
+        { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 9000 }
+      );
+      for (const line of stdout.split(/\r?\n/)) {
+        const trimmed = line.trim();
+        if (trimmed) {
+          matches.push(trimmed);
+        }
+      }
+    } catch {
+      continue;
+    }
+  }
+  return matches;
+}
+
+function scanMacForGoodebotApps(workspaceRoot = "") {
+  const explicitCandidates = [
+    GOODEBOT_DESTINATION_APP,
+    "/Applications/Goodebot.app",
+    path.join(os.homedir(), "Downloads", "Goodebot.app"),
+    path.join(GOODEBOT_LOCAL_REPO, "builds", "Goodebot", "Goodebot.app"),
+  ];
+  const searchRoots = goodebotAppScanRoots(workspaceRoot);
+  const candidates = uniqueStrings([
+    ...explicitCandidates,
+    ...findGoodebotAppsWithSpotlight(searchRoots),
+    ...findGoodebotAppsWithFind(searchRoots),
+  ].map((candidate) => path.resolve(candidate)));
+
+  return candidates
+    .filter(isGoodebotAppBundle)
+    .map(goodebotAppDescriptor)
+    .sort((lhs, rhs) => {
+      if (rhs.modifiedTime !== lhs.modifiedTime) {
+        return rhs.modifiedTime - lhs.modifiedTime;
+      }
+      return lhs.path.localeCompare(rhs.path);
+    });
 }
 
 function readGoodebotBuildInfo(appPath) {
@@ -1851,22 +1959,29 @@ async function updateGoodebotForMac() {
     return;
   }
 
-  const installed = detectInstalledGoodebotApp();
+  const installed = await chooseGoodebotUpdateTarget();
   if (!installed) {
     const choice = await vscode.window.showInformationMessage(
-      "Goodebot is not installed yet. Install the latest Mac build now?",
-      "Install Goodebot",
+      "No Goodebot.app was found on this Mac. Install the latest Mac build to ~/Applications?",
+      "Install Latest",
       "Open Downloads"
     );
-    if (choice === "Install Goodebot") {
-      await installGoodebotForMacWithOptions({ forceRedownload: true, updateMode: true });
+    if (choice === "Install Latest") {
+      await installGoodebotForMacWithOptions({
+        forceRedownload: true,
+        updateMode: true,
+        targetAppPath: GOODEBOT_DESTINATION_APP,
+      });
     } else if (choice === "Open Downloads") {
       await vscode.env.openExternal(vscode.Uri.parse(DOWNLOAD_URL));
     }
     return;
   }
 
-  const installedBuild = readGoodebotBuildInfo(installed.path);
+  const installedBuild = installed.buildInfo || {
+    ...readGoodebotBuildInfo(installed.path),
+    ...readGoodebotBundleInfo(installed.path),
+  };
   let release = null;
   try {
     release = await fetchLatestGoodebotRelease();
@@ -1877,7 +1992,12 @@ async function updateGoodebotForMac() {
       "Open Downloads"
     );
     if (choice === "Download Latest Anyway") {
-      await installGoodebotForMacWithOptions({ forceRedownload: true, updateMode: true });
+      await installGoodebotForMacWithOptions({
+        forceRedownload: true,
+        updateMode: true,
+        targetAppPath: installed.path,
+        selectedInstalled: installed,
+      });
     } else if (choice === "Open Downloads") {
       await vscode.env.openExternal(vscode.Uri.parse(DOWNLOAD_URL));
     }
@@ -1888,17 +2008,62 @@ async function updateGoodebotForMac() {
   const latestLabel = release.tagName || release.name || "latest release";
   const isNewer = releaseLooksNewerForExtension(release, installedBuild);
   const choice = await vscode.window.showInformationMessage(
-    `${isNewer ? "Update available" : "Latest release checked"}.\nInstalled: ${installedLabel}\nLatest: ${latestLabel}`,
+    `${isNewer ? "Update available" : "Latest release checked"}.\nTarget: ${installed.path}\nInstalled: ${installedLabel}\nLatest: ${latestLabel}`,
     { modal: true },
     isNewer ? "Update Goodebot" : "Reinstall Latest",
     "Open Downloads"
   );
 
   if (choice === "Update Goodebot" || choice === "Reinstall Latest") {
-    await installGoodebotForMacWithOptions({ forceRedownload: true, updateMode: true, release });
+    await installGoodebotForMacWithOptions({
+      forceRedownload: true,
+      updateMode: true,
+      release,
+      targetAppPath: installed.path,
+      selectedInstalled: installed,
+    });
   } else if (choice === "Open Downloads") {
     await vscode.env.openExternal(vscode.Uri.parse(release.htmlUrl || DOWNLOAD_URL));
   }
+}
+
+async function chooseGoodebotUpdateTarget() {
+  const state = collectStudioState();
+  const apps = await vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Notification,
+      title: "Scanning this Mac for Goodebot apps",
+      cancellable: false,
+    },
+    async (progress) => {
+      progress.report({ message: "Checking Spotlight, Applications, Downloads, Documents, and mounted drives..." });
+      return scanMacForGoodebotApps(state.workspaceRoot);
+    }
+  );
+
+  if (!apps.length) {
+    return null;
+  }
+
+  const items = apps.map((app) => {
+    const modified = app.modifiedTime ? new Date(app.modifiedTime).toLocaleString() : "unknown modified time";
+    return {
+      label: `$(rocket) Goodebot.app`,
+      description: goodebotBuildLabel(app.buildInfo),
+      detail: `${app.path}\nModified ${modified}`,
+      app,
+    };
+  });
+
+  const choice = await vscode.window.showQuickPick(items, {
+    title: "Choose Goodebot App To Update",
+    placeHolder: "Select the exact Goodebot.app copy VS Code should replace",
+    matchOnDescription: true,
+    matchOnDetail: true,
+    ignoreFocusOut: true,
+  });
+
+  return choice?.app || null;
 }
 
 async function downloadGoodebotDevWithPassword(providedPassword) {
@@ -1989,7 +2154,10 @@ async function installGoodebotForMacWithOptions(options) {
     return;
   }
 
-  const installed = detectInstalledGoodebotApp();
+  const targetAppPath = options.targetAppPath || GOODEBOT_DESTINATION_APP;
+  const selectedInstalled = options.selectedInstalled
+    || (pathExists(targetAppPath) && isGoodebotAppBundle(targetAppPath) ? goodebotAppDescriptor(targetAppPath) : null);
+  const installed = selectedInstalled || detectInstalledGoodebotApp();
   if (!options.forceRedownload && installed) {
     const choice = await vscode.window.showWarningMessage(
       `Goodebot is already installed at ${installed.path}.`,
@@ -2004,7 +2172,11 @@ async function installGoodebotForMacWithOptions(options) {
     }
 
     if (choice === "Remove and Redownload") {
-      await installGoodebotForMacWithOptions({ forceRedownload: true });
+      await installGoodebotForMacWithOptions({
+        forceRedownload: true,
+        targetAppPath: installed.path,
+        selectedInstalled: installed,
+      });
     }
     return;
   }
@@ -2024,7 +2196,7 @@ async function installGoodebotForMacWithOptions(options) {
       const downloadZipPath = path.join(installRoot, "Goodebot-macOS.zip");
       fs.mkdirSync(installRoot, { recursive: true });
       fs.mkdirSync(zipRoot, { recursive: true });
-      fs.mkdirSync(path.dirname(GOODEBOT_DESTINATION_APP), { recursive: true });
+      fs.mkdirSync(path.dirname(targetAppPath), { recursive: true });
 
       let resolvedSource = source;
       if (options.forceRedownload || !resolvedSource) {
@@ -2075,25 +2247,31 @@ async function installGoodebotForMacWithOptions(options) {
 
       progress.report({ message: "Saving Goodebot personalization and legacy migration..." });
       const snapshot = writeGoodebotPersonalizationSnapshot(state, targetBuild);
-      const backupPath = await backupInstalledGoodebotApp(installed, state);
+      const backupPath = await backupInstalledGoodebotApp(selectedInstalled || installed, state);
       const legacyPath = writeGoodebotLegacyMigrationFile(state, targetBuild, {
         backupPath,
+        targetAppPath,
+        oldAppPath: (selectedInstalled || installed)?.path || "",
+        oldBuild: (selectedInstalled || installed)?.buildInfo || (installed?.path
+          ? { ...readGoodebotBuildInfo(installed.path), ...readGoodebotBundleInfo(installed.path) }
+          : {}),
         sourcePath: resolvedSource.path,
         appSourcePath,
         snapshot,
       });
 
-      progress.report({ message: "Copying Goodebot into Applications..." });
-      fs.rmSync(GOODEBOT_DESTINATION_APP, { recursive: true, force: true });
-      await execFileAsync("ditto", [appSourcePath, GOODEBOT_DESTINATION_APP]);
+      progress.report({ message: "Copying Goodebot into the selected app..." });
+      fs.rmSync(targetAppPath, { recursive: true, force: true });
+      await execFileAsync("ditto", [appSourcePath, targetAppPath]);
 
       progress.report({ message: "Removing macOS quarantine flags..." });
-      await execFileAsync("xattr", ["-dr", "com.apple.quarantine", GOODEBOT_DESTINATION_APP]).catch(() => {});
+      await execFileAsync("xattr", ["-dr", "com.apple.quarantine", targetAppPath]).catch(() => {});
 
       progress.report({ message: "Launching Goodebot..." });
-      await openTarget(GOODEBOT_DESTINATION_APP);
+      await openTarget(targetAppPath);
+      cachedStudioState = undefined;
       const legacyNote = legacyPath ? ` Legacy file: ${legacyPath}` : "";
-      await vscode.window.showInformationMessage(`Goodebot installed at ${GOODEBOT_DESTINATION_APP}.${legacyNote}`);
+      await vscode.window.showInformationMessage(`Goodebot installed at ${targetAppPath}.${legacyNote}`);
     }
   ).catch(async (error) => {
     await vscode.window.showErrorMessage(`Goodebot install failed: ${error.message}`);
@@ -2248,12 +2426,12 @@ function writeGoodebotLegacyMigrationFile(state, targetBuild = {}, details = {})
       goodecodeRoot: state?.goodecodeRoot || "",
     },
     oldGoodebot: {
-      appPath: state?.goodebotInstalled?.path || "",
-      build: state?.goodebotInstalledBuild || {},
+      appPath: details.oldAppPath || state?.goodebotInstalled?.path || "",
+      build: details.oldBuild || state?.goodebotInstalledBuild || {},
     },
     targetGoodebot: {
       build: targetBuild,
-      installPath: GOODEBOT_DESTINATION_APP,
+      installPath: details.targetAppPath || GOODEBOT_DESTINATION_APP,
       sourcePath: details.sourcePath || "",
       appSourcePath: details.appSourcePath || "",
     },
