@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.34
+
+- makes the Goodebot updater choose both the target app and the exact build zip/app to install
+- lists local dev builds and shared Goodebot GitHub builds before falling back to downloads, avoiding stale latest-release installs
+- tightens Goodecode Studio card sizing so guide/starter buttons no longer stretch into tall blocks
+- keeps empty restored Goodebot workspaces on the Create/Import screen instead of reopening a blank workflow tab
+
 ## 0.0.33
 
 - scans the Mac for Goodebot apps before updating so the user can choose the exact app copy VS Code should replace
