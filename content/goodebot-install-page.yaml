@@ -1,0 +1,24 @@
+page:
+  eyebrow: "Goodebot"
+  title: "Install Goodebot"
+  intro: "Install or open the Mac app."
+
+status:
+  installed_title: "Installed"
+  ready_title: "Ready"
+  missing_title: "Download first"
+  installed_prefix: "Installed:"
+  source_prefix: "Found:"
+  missing_body: "Download the Mac zip, then install."
+
+actions:
+  primary_label: "Install"
+  installed_secondary_label: "Open Goodebot"
+  installed_reinstall_label: "Reinstall Goodebot"
+  missing_secondary_label: "Download"
+
+sections:
+  - kind: "note"
+    style: "info"
+    title: "Need"
+    body: "Keep the zip or app on this Mac."

@@ -1,0 +1,51 @@
+{
+  "Goodecode Lifecycle": {
+    "prefix": "goodecode-lifecycle",
+    "body": [
+      "from typing import Any",
+      "",
+      "",
+      "def initialize(ctx: Any) -> None:",
+      "    ctx.project_title(\"${1:My Robot}\")",
+      "    ctx.status(\"Goodecode ready\")",
+      "    ctx.use_brain_icon(\"goodebot\")",
+      "",
+      "",
+      "def autonomous(ctx: Any) -> None:",
+      "    ${2:pass}",
+      "",
+      "",
+      "def opcontrol(ctx: Any) -> None:",
+      "    while ctx.enabled():",
+      "        ctx.sleep_ms(${3:20})"
+    ],
+    "description": "Starter lifecycle entrypoints for a native Goodecode robot file."
+  },
+  "Goodecode Info Screen": {
+    "prefix": "goodecode-screen",
+    "body": [
+      "def build_info_screen(ctx):",
+      "    ctx.title(\"${1:My Robot}\")",
+      "    ctx.info(\"Goodecode by BanSextus\")",
+      "    ctx.hardware_status()",
+      "    ctx.allow_project_ui_switch(${2:True})"
+    ],
+    "description": "Starter Goodecode info screen with Goodebot credits and hardware status."
+  },
+  "Goodecode Chassis Tuning": {
+    "prefix": "goodecode-chassis",
+    "body": [
+      "def configure_robot(ctx):",
+      "    left_drive = ctx.motor_group(ports=[${1:1}, ${2:2}], name=\"${3:Left Drive}\")",
+      "    right_drive = ctx.motor_group(ports=[${4:3}, ${5:4}], name=\"${6:Right Drive}\")",
+      "    ctx.robot_profile(weight_lb=${7:18.0}, wheel_diameter_in=${8:3.25}, drive_gear_ratio=${9:1.0}, track_width_in=${10:12.5})",
+      "    ctx.auton_tuning(drive_distance_scale=${11:1.0}, turn_scale=${12:1.0}, max_accel=${13:0.65}, brake_strength=${14:0.42}, heading_hold_kp=${15:0.35}, drift_correction=${16:1.0})",
+      "    ctx.pid_drive_constants_set(kp=${17:0.45}, ki=${18:0.0}, kd=${19:1.8})",
+      "    ctx.pid_turn_constants_set(kp=${20:1.15}, ki=${21:0.0}, kd=${22:4.2})",
+      "    ctx.pid_drive_exit_condition_set(error=${23:0.75}, settle_ms=${24:180}, timeout_ms=${25:2500})",
+      "    ctx.pid_turn_exit_condition_set(error=${26:1.5}, settle_ms=${27:180}, timeout_ms=${28:2500})",
+      "    ctx.slew_drive_constants_set(rate=${29:0.62})"
+    ],
+    "description": "EZ-style Goodecode chassis setup with PID, drift correction, slew, and exit conditions."
+  }
+}

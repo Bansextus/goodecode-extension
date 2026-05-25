@@ -1,0 +1,89 @@
+{
+  "scopeName": "source.goodecode",
+  "name": "Goodecode",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#keywords"
+    },
+    {
+      "include": "#goodebotApi"
+    },
+    {
+      "include": "#numbers"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.number-sign.goodecode",
+          "match": "#.*$"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.goodecode",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.goodecode",
+              "match": "\\\\."
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.single.goodecode",
+          "begin": "'",
+          "end": "'",
+          "patterns": [
+            {
+              "name": "constant.character.escape.goodecode",
+              "match": "\\\\."
+            }
+          ]
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.goodecode",
+          "match": "\\b(def|class|import|from|return|if|elif|else|while|for|in|pass|break|continue|try|except|finally|with|as|yield|lambda)\\b"
+        },
+        {
+          "name": "constant.language.goodecode",
+          "match": "\\b(True|False|None)\\b"
+        }
+      ]
+    },
+    "goodebotApi": {
+      "patterns": [
+        {
+          "name": "support.function.goodecode",
+          "match": "\\b(project_title|status|use_brain_icon|info|title|screen_button|hardware_status|allow_project_ui_switch|sleep_ms|wait_ms|enabled|motor|motor_group|sensor|pneumatic|drive_mode|robot_profile|auton_tuning|chassis|set_drive_mode|set_drive_inverted|toggle_drive_inverted|drive|drive_for|drive_inches|drive_ms|drive_to|drive_to_point|turn_for|turn_degrees|turn_to_heading|turn_left|turn_right|swing_turn|heading|drive_set|drive_arcade|drive_tank|stop_drive|set_drive_deadzone|set_drive_curve|set_drive_speed_limit|opcontrol_tank|opcontrol_arcade_standard|drive_brake_set|pid_drive_set|pid_turn_set|pid_swing_set|pid_wait|pid_targets_reset|drive_imu_reset|drive_sensor_reset|odom_xyt_set|set_pose|get_pose|odometry|arc|arc_to|arc_to_point|pure_pursuit|pid_drive_constants_set|pid_heading_constants_set|pid_turn_constants_set|pid_swing_constants_set|pid_odom_angular_constants_set|pid_odom_boomerang_constants_set|pid_drive_exit_condition_set|pid_turn_exit_condition_set|pid_swing_exit_condition_set|pid_odom_drive_exit_condition_set|pid_odom_turn_exit_condition_set|pid_drive_chain_constant_set|pid_turn_chain_constant_set|pid_swing_chain_constant_set|slew_drive_constants_set|slew_turn_constants_set|slew_swing_constants_set|odom_turn_bias_set|odom_look_ahead_set|odom_boomerang_distance_set|odom_boomerang_dlead_set|pid_angle_behavior_set|bind_button|unbind_button|clear_bindings|load_default_drive_bindings|set_project_actions|action_pressed|action_held|action_released|intake|intake_on|outtake_on|eject|pneumatic_on|pneumatic_off)\\b"
+        },
+        {
+          "name": "variable.language.goodecode",
+          "match": "\\b(ctx|brain|screen|motors|controller)\\b"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.goodecode",
+          "match": "\\b\\d+(?:\\.\\d+)?\\b"
+        }
+      ]
+    }
+  }
+}

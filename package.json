@@ -1,0 +1,196 @@
+{
+  "name": "goodecode",
+  "displayName": "Goodecode",
+  "description": "Language support for Goodecode, the Python-first native Goodebot workflow with native Goodebot runtime export.",
+  "version": "0.0.32",
+  "publisher": "BanSextus",
+  "author": {
+    "name": "BanSextus"
+  },
+  "license": "UNLICENSED",
+  "icon": "media/goodecode-icon.png",
+  "preview": false,
+  "galleryBanner": {
+    "color": "#132234",
+    "theme": "dark"
+  },
+  "homepage": "https://github.com/Bansextus/Goodebot",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Bansextus/Goodebot.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Bansextus/Goodebot/issues"
+  },
+  "qna": "https://github.com/Bansextus/Goodebot/discussions",
+  "main": "./extension.js",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "activationEvents": [
+    "onView:goodecode.sidebar",
+    "onCommand:goodecode.openStudio",
+    "onCommand:goodecode.refreshSidebar",
+    "onCommand:goodecode.installGoodebot",
+    "onCommand:goodecode.reinstallGoodebot",
+    "onCommand:goodecode.updateGoodebot",
+    "onCommand:goodecode.openGoodebot",
+    "onCommand:goodecode.openGoodebotDownload",
+    "onCommand:goodecode.downloadGoodebotDev",
+    "onCommand:goodecode.openWorkspaceFolder",
+    "onCommand:goodecode.createStarterFiles",
+    "onCommand:goodecode.openSyntaxGuidePreview",
+    "onCommand:goodecode.createScreenTemplate",
+    "onCommand:goodecode.createSingleScriptTemplate",
+    "onCommand:goodecode.convertForGoodebot"
+  ],
+  "categories": [
+    "Programming Languages",
+    "Snippets",
+    "Other"
+  ],
+  "keywords": [
+    "goodebot",
+    "goodecode",
+    "pros",
+    "robotics",
+    "vex",
+    "python"
+  ],
+  "scripts": {
+    "package": "npx @vscode/vsce package",
+    "publish:patch": "npx @vscode/vsce publish patch",
+    "publish:minor": "npx @vscode/vsce publish minor"
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "goodecode.openStudio",
+        "title": "Goodecode: Open Goodecode"
+      },
+      {
+        "command": "goodecode.refreshSidebar",
+        "title": "Goodecode: Refresh Sidebar",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "goodecode.installGoodebot",
+        "title": "Goodecode: Install Goodebot"
+      },
+      {
+        "command": "goodecode.reinstallGoodebot",
+        "title": "Goodecode: Remove and Redownload Goodebot"
+      },
+      {
+        "command": "goodecode.updateGoodebot",
+        "title": "Goodecode: Check for Goodebot Update"
+      },
+      {
+        "command": "goodecode.openGoodebot",
+        "title": "Goodecode: Open Goodebot"
+      },
+      {
+        "command": "goodecode.openGoodebotDownload",
+        "title": "Goodecode: Open Goodebot Download"
+      },
+      {
+        "command": "goodecode.downloadGoodebotDev",
+        "title": "Goodecode: Download Goodebot Dev"
+      },
+      {
+        "command": "goodecode.openWorkspaceFolder",
+        "title": "Goodecode: Reveal Workspace Folder"
+      },
+      {
+        "command": "goodecode.createStarterFiles",
+        "title": "Goodecode: Create Starter Files"
+      },
+      {
+        "command": "goodecode.openSyntaxGuidePreview",
+        "title": "Goodecode: Open Syntax Guide Preview"
+      },
+      {
+        "command": "goodecode.createScreenTemplate",
+        "title": "Goodecode: Create Brain Screen File"
+      },
+      {
+        "command": "goodecode.createSingleScriptTemplate",
+        "title": "Goodecode: Create One-Script Python File"
+      },
+      {
+        "command": "goodecode.convertForGoodebot",
+        "title": "Goodecode: Build For Goodebot",
+        "icon": "$(gear)"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "goodecode",
+          "title": "Goodecode",
+          "icon": "media/goodecode-sidebar-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "goodecode": [
+        {
+          "type": "webview",
+          "id": "goodecode.sidebar",
+          "name": "Goodecode"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "goodecode.openStudio",
+          "when": "view == goodecode.sidebar",
+          "group": "navigation"
+        },
+        {
+          "command": "goodecode.refreshSidebar",
+          "when": "view == goodecode.sidebar",
+          "group": "navigation"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "goodecode.convertForGoodebot",
+          "when": "goodecode.canConvertForGoodebot",
+          "group": "navigation"
+        }
+      ]
+    },
+    "languages": [
+      {
+        "id": "goodecode",
+        "aliases": [
+          "Goodecode",
+          "goodecode"
+        ],
+        "extensions": [
+          ".goode.py",
+          ".goodecode"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "goodecode",
+        "scopeName": "source.goodecode",
+        "path": "./syntaxes/goodecode.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "goodecode",
+        "path": "./snippets/goodecode.json"
+      }
+    ]
+  },
+  "dependencies": {
+    "yaml": "^2.8.3"
+  }
+}
