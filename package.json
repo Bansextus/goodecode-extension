@@ -2,7 +2,7 @@
   "name": "goodecode",
   "displayName": "Goodecode",
   "description": "Language support for Goodecode, the Python-first native Goodebot workflow with native Goodebot runtime export.",
-  "version": "0.0.35",
+  "version": "0.0.36",
   "publisher": "BanSextus",
   "author": {
     "name": "BanSextus"

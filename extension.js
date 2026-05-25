@@ -1893,14 +1893,12 @@ function findGoodebotBuildZipsWithFind(searchRoots) {
 }
 
 function findLocalGoodebotBuildSources(workspaceRoot = "") {
-  const explicitCandidates = [
-    path.join(os.homedir(), "GoodebotDevBuilds", "Goodebot", "dev", "Goodebot-dev-macOS.zip"),
-  ];
+  const explicitCandidates = [];
   const searchRoots = goodebotBuildSourceRoots(workspaceRoot);
   const candidates = uniqueStrings([
     ...explicitCandidates,
     ...findGoodebotBuildZipsWithFind(searchRoots),
-  ].map((candidate) => path.resolve(candidate)));
+  ].map((candidate) => path.resolve(candidate))).filter(pathExists);
 
   return candidates
     .filter((candidate) => {
@@ -2010,6 +2008,7 @@ function goodebotBuildLabel(buildInfo) {
 
 function goodebotArtifactVersionToken(source) {
   const fileText = [
+    source?.buildRecord?.artifact || "",
     source?.path || "",
     source?.assetName || "",
     source?.label || "",
@@ -2045,6 +2044,10 @@ function goodebotArtifactVersionToken(source) {
   }
 
   return "unknown version";
+}
+
+function goodebotHasNumberedVersion(source) {
+  return /^V3\.\d+/i.test(goodebotArtifactVersionToken(source));
 }
 
 function goodebotSourceKindLabel(source) {
@@ -2145,6 +2148,7 @@ async function fetchGoodebotReleaseBuildSources(limit = 20) {
       continue;
     }
     const buildInfoAsset = assets.find((asset) => String(asset?.name || "").toLowerCase() === "build_info.txt");
+    const metadataAsset = assets.find((asset) => String(asset?.name || "").toLowerCase() === "build-metadata.json");
     let buildInfo = {};
     if (buildInfoAsset?.browser_download_url) {
       try {
@@ -2153,7 +2157,15 @@ async function fetchGoodebotReleaseBuildSources(limit = 20) {
         buildInfo = {};
       }
     }
-    sources.push({
+    let buildRecord = {};
+    if (metadataAsset?.browser_download_url) {
+      try {
+        buildRecord = JSON.parse(await fetchText(metadataAsset.browser_download_url));
+      } catch {
+        buildRecord = {};
+      }
+    }
+    const source = {
       path: zipAsset.browser_download_url,
       label: tagName || release.name || zipAsset.name,
       kind: "download",
@@ -2165,7 +2177,12 @@ async function fetchGoodebotReleaseBuildSources(limit = 20) {
       assetUrl: zipAsset.browser_download_url,
       modifiedTime: Date.parse(release.published_at || "") || 0,
       buildInfo,
-    });
+      buildRecord,
+    };
+    if (!goodebotHasNumberedVersion(source)) {
+      continue;
+    }
+    sources.push(source);
     if (sources.length >= limit) {
       break;
     }
@@ -2444,7 +2461,8 @@ async function downloadGoodebotDevWithPassword(providedPassword) {
       const downloadRoot = path.join(os.homedir(), "Downloads");
       const targetPath = path.join(downloadRoot, devRelease?.assetName || "Goodebot-Dev-macOS.zip");
 
-      const localDevZip = GOODEBOT_DEV_LOCAL_ZIPS.find((candidate) => pathExists(candidate));
+      const localDevZip = findLocalGoodebotBuildSources()[0]?.path
+        || GOODEBOT_DEV_LOCAL_ZIPS.find((candidate) => pathExists(candidate));
       if (!devRelease?.assetUrl && localDevZip) {
         fs.mkdirSync(downloadRoot, { recursive: true });
         fs.copyFileSync(localDevZip, targetPath);
@@ -2642,7 +2660,11 @@ async function fetchLatestGoodebotDevRelease() {
 
   for (const release of releases) {
     const assets = Array.isArray(release.assets) ? release.assets : [];
-    const asset = assets.find((candidate) => GOODEBOT_DEV_ASSET_NAMES.includes(candidate?.name));
+    const asset = assets.find((candidate) => {
+      const name = String(candidate?.name || "");
+      return GOODEBOT_DEV_ASSET_NAMES.includes(name)
+        || /^V3\.\d+-Goodebot-dev-macOS\.zip$/i.test(name);
+    });
     if (!asset?.browser_download_url) {
       continue;
     }

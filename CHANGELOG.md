@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.0.36
+
+- shows only numbered `V3.xx` Goodebot builds in the update picker
+- stops creating a fake `Goodebot-dev-macOS.zip` row when only numbered dev builds should be selectable
+- reads shared release metadata so uploaded numbered beta artifacts keep their human version labels
+- keeps old generic/non-numbered Goodebot releases out of the install picker
+
 ## 0.0.35
 
 - labels Goodebot update choices with clear version/build numbers before the source name
