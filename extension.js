@@ -2374,31 +2374,151 @@ async function chooseGoodebotInstallSource(title = "Choose Goodebot Build To Ins
 }
 
 async function openInstalledGoodebot() {
-  const state = collectStudioState();
-  const installed = state.goodebotInstalled;
-  const source = state.goodebotSource;
-
-  let install = installed ?? source;
-  if (source?.kind === "app" && (!installed || source.modifiedTime > installed.modifiedTime)) {
-    install = source;
+  const launchChoice = await chooseGoodebotLaunchProfile();
+  if (!launchChoice) {
+    return;
   }
 
-  if (!install) {
+  if (launchChoice.kind === "new") {
+    const confirmed = await confirmGoodebotProfileLaunch(null);
+    if (confirmed) {
+      await launchNewGoodebotProfile();
+    }
+    return;
+  }
+
+  const confirmed = await confirmGoodebotProfileLaunch(launchChoice.profile);
+  if (!confirmed) {
+    return;
+  }
+  await launchGoodebotProfile(launchChoice.profile);
+}
+
+async function chooseGoodebotLaunchProfile() {
+  const state = collectStudioState();
+  const profiles = await vscode.window.withProgress(
+    {
+      location: vscode.ProgressLocation.Notification,
+      title: "Scanning this Mac for Goodebot profiles",
+      cancellable: false,
+    },
+    async (progress) => {
+      progress.report({ message: "Checking exported profile apps and saved Goodebot profile JSON files..." });
+      return scanMacForGoodebotProfiles(state.workspaceRoot);
+    }
+  );
+
+  const items = [
+    {
+      label: "$(plus) New Profile",
+      description: "start clean",
+      detail: "Open Goodebot without loading an existing robot profile.",
+      choice: { kind: "new" },
+    },
+  ];
+
+  if (profiles.length) {
+    items.push({ label: "Existing Profiles", kind: vscode.QuickPickItemKind.Separator });
+    for (const profile of profiles) {
+      items.push(goodebotProfileQuickPickItem(profile, { choiceKind: "profile" }));
+    }
+  }
+
+  const choice = await vscode.window.showQuickPick(items, {
+    title: "Open Goodebot",
+    placeHolder: "Select a robot profile to open, or start a new profile",
+    matchOnDescription: true,
+    matchOnDetail: true,
+    ignoreFocusOut: true,
+  });
+
+  return choice?.choice || null;
+}
+
+function goodebotProfileQuickPickItem(profile, options = {}) {
+  const version = `v${profile.schemaVersion}`;
+  const sourceKind = profile.appBundlePath ? "profile app" : "profile json";
+  const madeWith = profile.madeWithVersion || "unknown Goodebot version";
+  const upgrade = profile.migratedFromSchemaVersion
+    ? `\nLegacy profile v${profile.migratedFromSchemaVersion} will be upgraded to ${version}.`
+    : "";
+  return {
+    label: `$(check) ${profile.name}`,
+    description: `${version} • made with ${madeWith}`,
+    detail: `${profile.sourceFolder}\n${sourceKind}${upgrade}`,
+    profile,
+    choice: { kind: options.choiceKind || "profile", profile },
+  };
+}
+
+async function launchNewGoodebotProfile() {
+  const installed = detectInstalledGoodebotApp();
+  if (installed?.path && pathExists(installed.path)) {
+    await openTarget(installed.path);
+    return;
+  }
+
+  const source = await chooseGoodebotInstallSource();
+  if (!source) {
+    await vscode.window.showWarningMessage("No released Goodebot build was found on GitHub.");
+    return;
+  }
+  await installGoodebotForMacWithOptions({ forceRedownload: true, installSource: source });
+}
+
+async function launchGoodebotProfile(profile) {
+  if (profile?.appBundlePath && pathExists(profile.appBundlePath)) {
+    await openTarget(profile.appBundlePath);
+    return;
+  }
+
+  const launchAppPath = await createProfileLaunchApp(profile);
+  if (launchAppPath) {
+    await openTarget(launchAppPath);
+  }
+}
+
+async function createProfileLaunchApp(profile) {
+  if (!profile?.path || !pathExists(profile.path)) {
+    await vscode.window.showErrorMessage("The selected Goodebot profile file is missing.");
+    return "";
+  }
+
+  let sourceApp = detectInstalledGoodebotApp();
+  if (!sourceApp?.path || !pathExists(sourceApp.path)) {
     const source = await chooseGoodebotInstallSource();
     if (!source) {
       await vscode.window.showWarningMessage("No released Goodebot build was found on GitHub.");
-      return;
+      return "";
     }
     await installGoodebotForMacWithOptions({ forceRedownload: true, installSource: source });
-    return;
+    sourceApp = detectInstalledGoodebotApp();
   }
 
-  if (install.kind === "zip" || install.kind === "installer") {
-    await installGoodebotForMacWithOptions({ forceRedownload: false });
-    return;
+  if (!sourceApp?.path || !pathExists(sourceApp.path)) {
+    await vscode.window.showErrorMessage("Goodebot is not installed, so the selected JSON profile cannot be launched yet.");
+    return "";
   }
 
-  await openTarget(install.path);
+  const appName = sanitizeFileToken(profile.name || "Goodebot Profile");
+  const launchRoot = path.join(GOODEBOT_APP_SUPPORT_ROOT, "profile-launches", appName);
+  const launchAppPath = path.join(launchRoot, `${appName}.app`);
+  fs.mkdirSync(launchRoot, { recursive: true });
+  fs.rmSync(launchAppPath, { recursive: true, force: true });
+  await execFileAsync("ditto", [sourceApp.path, launchAppPath]);
+
+  const resourceRoot = path.join(launchAppPath, "Contents", "Resources");
+  const seedData = fs.readFileSync(profile.path);
+  for (const seedTarget of [
+    path.join(resourceRoot, "goodebot_seed.json"),
+    path.join(resourceRoot, "Workspace Data", "goodebot_seed.json"),
+  ]) {
+    fs.mkdirSync(path.dirname(seedTarget), { recursive: true });
+    fs.writeFileSync(seedTarget, seedData);
+  }
+  setGoodebotAppDisplayName(launchAppPath, profile.name || appName);
+  await prepareMacAppForLaunch(launchAppPath);
+  return launchAppPath;
 }
 
 async function installGoodebotForMac() {
@@ -2523,20 +2643,7 @@ async function chooseGoodebotUpdateProfile() {
     return null;
   }
 
-  const items = profiles.map((profile) => {
-    const version = `v${profile.schemaVersion}`;
-    const sourceKind = profile.appBundlePath ? "profile app" : "profile json";
-    const madeWith = profile.madeWithVersion || "unknown Goodebot version";
-    const upgrade = profile.migratedFromSchemaVersion
-      ? `\nLegacy profile v${profile.migratedFromSchemaVersion} will be upgraded to ${version}.`
-      : "";
-    return {
-      label: `$(check) ${profile.name}`,
-      description: `${version} • made with ${madeWith}`,
-      detail: `${profile.sourceFolder}\n${sourceKind}${upgrade}`,
-      profile,
-    };
-  });
+  const items = profiles.map((profile) => goodebotProfileQuickPickItem(profile, { choiceKind: "profile" }));
 
   const choice = await vscode.window.showQuickPick(items, {
     title: "Choose Goodebot Profile To Update",
@@ -2587,6 +2694,129 @@ function preserveGoodebotProfileResources(profile) {
   return preserved;
 }
 
+function goodebotProfileFiles(profile) {
+  if (!profile) {
+    return [];
+  }
+
+  const files = [];
+  const pushFile = (filePath) => {
+    if (filePath && pathExists(filePath) && fs.statSync(filePath).isFile()) {
+      files.push(path.resolve(filePath));
+    }
+  };
+
+  pushFile(profile.path);
+
+  if (profile.appBundlePath && pathExists(profile.appBundlePath)) {
+    const resourceRoot = path.join(profile.appBundlePath, "Contents", "Resources");
+    for (const relativePath of [
+      "goodebot_seed.json",
+      "goodebot_branding.json",
+      "goodebot_workspace_branding.json",
+      "custom_app_icon.png",
+      "AppIcon.icns",
+      "Workspace Data/goodebot_seed.json",
+      "Workspace Data/goodebot_workspace_blueprint.json",
+    ]) {
+      pushFile(path.join(resourceRoot, relativePath));
+    }
+
+    const workspaceData = path.join(resourceRoot, "Workspace Data");
+    if (pathExists(workspaceData)) {
+      try {
+        const stdout = childProcess.execFileSync(
+          "/usr/bin/find",
+          [workspaceData, "-type", "f", "-maxdepth", "4", "-print"],
+          { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 2500, maxBuffer: 1_000_000 }
+        );
+        for (const line of stdout.split(/\r?\n/)) {
+          pushFile(line.trim());
+        }
+      } catch {
+        // The explicit profile files above still cover the critical seed data.
+      }
+    }
+  } else {
+    pushFile(path.join(path.dirname(profile.path), "BUILD_INFO.txt"));
+  }
+
+  return uniqueStrings(files);
+}
+
+function goodebotProfileDataSummary(profile) {
+  const document = profile?.path ? readJsonFileSafe(profile.path) : null;
+  if (!document) {
+    return [];
+  }
+
+  const activePorts = Array.isArray(document.ports)
+    ? document.ports.filter((port) => String(port?.deviceType || "None") !== "None")
+    : [];
+  const motorGroups = Array.isArray(document.robotBuilder?.motors) ? document.robotBuilder.motors.length : 0;
+  const sensors = Array.isArray(document.robotBuilder?.sensors) ? document.robotBuilder.sensors.length : 0;
+  const pneumatics = Array.isArray(document.robotBuilder?.pneumatics) ? document.robotBuilder.pneumatics.length : 0;
+  const modules = document.modules && typeof document.modules === "object"
+    ? Object.entries(document.modules)
+      .filter(([, enabled]) => Boolean(enabled))
+      .map(([name]) => name)
+    : [];
+
+  return [
+    `Workspace: ${document.workspaceName || profile.name || "unknown"}`,
+    `Runtime: ${document.runtime || "unknown"}`,
+    `Drive mode: ${document.driveMode || "unknown"}`,
+    `Drive ports: L ${JSON.stringify(document.driveLeftPorts || [])} / R ${JSON.stringify(document.driveRightPorts || [])}`,
+    `Active port assignments: ${activePorts.length}`,
+    `Robot Builder: ${motorGroups} motor group(s), ${sensors} sensor(s), ${pneumatics} pneumatic item(s)`,
+    `Enabled modules: ${modules.length ? modules.join(", ") : "none"}`,
+  ];
+}
+
+function goodebotProfileReviewDetail(profile) {
+  if (!profile) {
+    return [
+      "New Profile",
+      "No existing profile files will be loaded.",
+      "Goodebot should open to the create/import flow.",
+    ].join("\n");
+  }
+
+  const files = goodebotProfileFiles(profile);
+  const maxFilesToShow = 80;
+  const fileLines = files.slice(0, maxFilesToShow).map((filePath) => `- ${filePath}`);
+  if (files.length > maxFilesToShow) {
+    fileLines.push(`- ...and ${files.length - maxFilesToShow} more file(s)`);
+  }
+
+  return [
+    `Profile: ${profile.name}`,
+    `Schema: v${profile.schemaVersion}`,
+    `Made with: ${profile.madeWithVersion || "unknown Goodebot version"}`,
+    `Source: ${profile.sourceFolder}`,
+    "",
+    "Profile data:",
+    ...goodebotProfileDataSummary(profile).map((line) => `- ${line}`),
+    "",
+    `Files already in this profile (${files.length}):`,
+    ...(fileLines.length ? fileLines : ["- No profile files were found."]),
+  ].join("\n");
+}
+
+async function confirmGoodebotProfileLaunch(profile) {
+  const action = profile ? "Launch Profile" : "Start New Profile";
+  const choice = await vscode.window.showInformationMessage(
+    profile ? `Review Goodebot profile before opening: ${profile.name}` : "Open Goodebot with a new profile?",
+    {
+      modal: true,
+      detail: goodebotProfileReviewDetail(profile),
+    },
+    action,
+    "Cancel"
+  );
+  return choice === action;
+}
+
 function restoreGoodebotProfileResources(targetAppPath, preserved) {
   if (!preserved || !pathExists(targetAppPath)) {
     return;
@@ -2612,23 +2842,32 @@ function restoreGoodebotProfileResources(targetAppPath, preserved) {
 
   const infoPlist = path.join(targetAppPath, "Contents", "Info.plist");
   if (preserved.name && pathExists(infoPlist)) {
-    for (const key of ["CFBundleDisplayName", "CFBundleName"]) {
+    setGoodebotAppDisplayName(targetAppPath, preserved.name);
+  }
+}
+
+function setGoodebotAppDisplayName(appPath, displayName) {
+  const infoPlist = path.join(appPath, "Contents", "Info.plist");
+  if (!displayName || !pathExists(infoPlist)) {
+    return;
+  }
+
+  for (const key of ["CFBundleDisplayName", "CFBundleName"]) {
+    try {
+      childProcess.execFileSync(
+        "/usr/libexec/PlistBuddy",
+        ["-c", `Set :${key} ${displayName}`, infoPlist],
+        { stdio: "ignore", timeout: 1000 }
+      );
+    } catch {
       try {
         childProcess.execFileSync(
           "/usr/libexec/PlistBuddy",
-          ["-c", `Set :${key} ${preserved.name}`, infoPlist],
+          ["-c", `Add :${key} string ${displayName}`, infoPlist],
           { stdio: "ignore", timeout: 1000 }
         );
       } catch {
-        try {
-          childProcess.execFileSync(
-            "/usr/libexec/PlistBuddy",
-            ["-c", `Add :${key} string ${preserved.name}`, infoPlist],
-            { stdio: "ignore", timeout: 1000 }
-          );
-        } catch {
-          // Display name preservation is helpful, but the profile seed is the critical data.
-        }
+        // Display name preservation is helpful, but the profile seed is the critical data.
       }
     }
   }

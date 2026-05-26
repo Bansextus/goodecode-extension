@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.40
+
+- makes `Open Goodebot` require choosing an existing robot profile or `New Profile`
+- shows a pre-launch review popup with the profile data summary and files already stored in the selected profile
+- launches exported profile apps directly and creates an isolated launch app for saved profile JSON files
+
 ## 0.0.39
 
 - shows the Goodebot app/build version each scanned robot profile was made with
