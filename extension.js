@@ -8,29 +8,17 @@ const https = require("https");
 const YAML = require("yaml");
 
 const DOWNLOAD_URL = "https://github.com/Bansextus/Goodebot-Downloads/releases";
-const LATEST_RELEASE_API_URL = "https://api.github.com/repos/Bansextus/Goodebot-Downloads/releases/latest";
 const RELEASES_API_URL = "https://api.github.com/repos/Bansextus/Goodebot-Downloads/releases";
-const DIRECT_DOWNLOAD_URL = "https://github.com/Bansextus/Goodebot-Downloads/releases/latest/download/Goodebot-macOS.zip";
-const GOODEBOT_DEV_DOWNLOAD_PASSWORD = "56Wrenches.1!";
-const GOODEBOT_DEV_ASSET_NAMES = ["Goodebot-dev-macOS.zip", "Goodebot-Dev-macOS.zip", "Goodebot-Dev-dev-macOS.zip"];
 const REPO_URL = "https://github.com/Bansextus/Goodebot";
 const DISCUSSIONS_URL = "https://github.com/Bansextus/Goodebot/discussions";
 const GOODEBOT_DESTINATION_APP = path.join(os.homedir(), "Applications", "Goodebot.app");
 const GOODEBOT_APP_SUPPORT_ROOT = path.join(os.homedir(), "Library", "Application Support", "Goodebot");
 const GOODEBOT_UPDATE_BACKUP_ROOT = path.join(GOODEBOT_APP_SUPPORT_ROOT, "updates", "backups");
-const GOODEBOT_DEV_LOCAL_ZIPS = [
-  path.join(os.homedir(), "GoodebotDevBuilds", "Goodebot", "dev", "Goodebot-dev-macOS.zip"),
-  path.join(os.homedir(), "GoodebotDevBuilds", "GoodebotDev", "dev", "Goodebot-Dev-dev-macOS.zip"),
-];
 const GOODEBOT_APP_NAMES = ["Goodebot.app"];
 const GOODEBOT_INSTALLER_NAMES = ["Goodebot Installer.app"];
 const GOODEBOT_LOCAL_REPO = path.join(os.homedir(), "Documents", "GitHub", "Goodebot");
 const GOODEBOT_DOWNLOAD_REPO = path.join(os.homedir(), "Documents", "GitHub", "Goodebot-Downloads");
 const GOODEBOT_BUILD_ASSET_NAMES = ["Goodebot-macOS.zip", "Goodebot-beta-macOS.zip"];
-const GOODEBOT_BUILD_SOURCE_ROOTS = [
-  path.join(os.homedir(), "GoodebotDevBuilds", "Goodebot", "dev"),
-  path.join(os.homedir(), "GoodebotDevBuilds", "Goodebot", "beta"),
-];
 const GOODEBOT_APP_SCAN_ROOTS = [
   path.join(os.homedir(), "Applications"),
   path.join(os.homedir(), "Desktop"),
@@ -346,10 +334,6 @@ function activate(context) {
     }),
     vscode.commands.registerCommand("goodecode.openGoodebotDownload", async () => {
       await vscode.env.openExternal(vscode.Uri.parse(DOWNLOAD_URL));
-    }),
-    vscode.commands.registerCommand("goodecode.downloadGoodebotDev", async () => {
-      await downloadGoodebotDevWithPassword();
-      refreshAll();
     }),
     vscode.commands.registerCommand("goodecode.openWorkspaceFolder", async () => {
       await openWorkspaceFolderInOS();
@@ -1833,93 +1817,6 @@ function scanMacForGoodebotApps(workspaceRoot = "") {
     });
 }
 
-function goodebotBuildSourceRoots(_workspaceRoot = "") {
-  return uniqueStrings(GOODEBOT_BUILD_SOURCE_ROOTS).filter((candidate) => pathExists(candidate));
-}
-
-function isGoodebotBuildZip(candidatePath) {
-  const name = path.basename(candidatePath).toLowerCase();
-  if (!name.endsWith(".zip") || !name.includes("goodebot")) {
-    return false;
-  }
-  if (name.includes("goodebot-dev-dev") || candidatePath.includes(`${path.sep}GoodebotDev${path.sep}`)) {
-    return false;
-  }
-  return true;
-}
-
-function goodebotBuildSourceDescriptor(sourcePath) {
-  const descriptor = candidateDescriptor(sourcePath);
-  const buildInfo = descriptor.kind === "app"
-    ? { ...readGoodebotBuildInfo(sourcePath), ...readGoodebotBundleInfo(sourcePath) }
-    : descriptor.kind === "zip"
-      ? readGoodebotBuildInfoFromZip(sourcePath)
-      : {};
-  return {
-    ...descriptor,
-    modifiedTime: candidateModifiedTime(sourcePath),
-    buildInfo,
-    sourceKind: "local",
-  };
-}
-
-function findGoodebotBuildZipsWithFind(searchRoots) {
-  const matches = [];
-  for (const searchRoot of searchRoots) {
-    try {
-      const stdout = childProcess.execFileSync(
-        "/usr/bin/find",
-        [
-          searchRoot,
-          "-path", "*/Library/*", "-prune",
-          "-o", "-path", "*/.Trash/*", "-prune",
-          "-o", "-path", "*/node_modules/*", "-prune",
-          "-o", "-path", "*/.git/*", "-prune",
-          "-o", "-type", "f", "(", "-iname", "*Goodebot*.zip", "-o", "-iname", "V3.*Goodebot*.zip", ")", "-print",
-        ],
-        { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 9000 }
-      );
-      for (const line of stdout.split(/\r?\n/)) {
-        const trimmed = line.trim();
-        if (trimmed) {
-          matches.push(trimmed);
-        }
-      }
-    } catch {
-      continue;
-    }
-  }
-  return matches;
-}
-
-function findLocalGoodebotBuildSources(workspaceRoot = "") {
-  const explicitCandidates = [];
-  const searchRoots = goodebotBuildSourceRoots(workspaceRoot);
-  const candidates = uniqueStrings([
-    ...explicitCandidates,
-    ...findGoodebotBuildZipsWithFind(searchRoots),
-  ].map((candidate) => path.resolve(candidate))).filter(pathExists);
-
-  return candidates
-    .filter((candidate) => {
-      const descriptor = candidateDescriptor(candidate);
-      return descriptor.kind === "app"
-        ? isGoodebotAppBundle(candidate)
-        : isGoodebotBuildZip(candidate);
-    })
-    .map(goodebotBuildSourceDescriptor)
-    .sort((lhs, rhs) => {
-      const versionDelta = goodebotSourceSortValue(rhs) - goodebotSourceSortValue(lhs);
-      if (versionDelta) {
-        return versionDelta;
-      }
-      if (rhs.modifiedTime !== lhs.modifiedTime) {
-        return rhs.modifiedTime - lhs.modifiedTime;
-      }
-      return lhs.path.localeCompare(rhs.path);
-    });
-}
-
 function readGoodebotBuildInfo(appPath) {
   const buildInfoPath = path.join(appPath, "Contents", "Resources", "BUILD_INFO.txt");
   if (!pathExists(buildInfoPath)) {
@@ -1942,34 +1839,6 @@ function parseGoodebotBuildInfoText(text) {
     }
   }
   return output;
-}
-
-function readGoodebotBuildInfoFromZip(zipPath) {
-  const adjacentBuildInfoPath = path.join(path.dirname(zipPath), "BUILD_INFO.txt");
-  if (pathExists(adjacentBuildInfoPath)) {
-    try {
-      return parseGoodebotBuildInfoText(fs.readFileSync(adjacentBuildInfoPath, "utf8"));
-    } catch {
-      // Fall through to reading the zip itself.
-    }
-  }
-
-  for (const pattern of ["*/BUILD_INFO.txt", "BUILD_INFO.txt"]) {
-    try {
-      const text = childProcess.execFileSync(
-        "/usr/bin/unzip",
-        ["-p", zipPath, pattern],
-        { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: 2500, maxBuffer: 1_000_000 }
-      );
-      const parsed = parseGoodebotBuildInfoText(text);
-      if (Object.keys(parsed).length) {
-        return parsed;
-      }
-    } catch {
-      continue;
-    }
-  }
-  return {};
 }
 
 function readGoodebotBundleInfo(appPath) {
@@ -2054,13 +1923,7 @@ function goodebotSourceKindLabel(source) {
   const sourcePath = source?.path || "";
   const fileName = path.basename(sourcePath || source?.assetName || source?.label || "Goodebot build");
   if (source?.sourceKind === "github") {
-    if (String(source?.releaseTag || "").includes("shared-beta")) {
-      return "shared beta";
-    }
-    if (String(source?.releaseTag || "").includes("beta")) {
-      return "release beta";
-    }
-    return source?.assetName || "GitHub build";
+    return "released build";
   }
   if (sourcePath.includes(`${path.sep}Goodebot${path.sep}dev${path.sep}`)) {
     return "Goodebot dev build";
@@ -2112,7 +1975,17 @@ function detectInstalledGoodebotApp() {
 }
 
 function detectGoodebotInstallSource(workspaceRoot) {
-  return findLocalGoodebotBuildSources(workspaceRoot)[0] || null;
+  return null;
+}
+
+function isPublicGoodebotReleaseTag(tagName) {
+  const tag = String(tagName || "").toLowerCase();
+  if (tag.includes("dev") || tag.includes("shared-beta")) {
+    return false;
+  }
+  return /^goodebot-beta-\d{14}$/.test(tag)
+    || /^goodebot-release-v?\d+(?:\.\d+)*$/.test(tag)
+    || /^goodebot-v\d+(?:\.\d+)*$/.test(tag);
 }
 
 function goodebotSourceDisplayLabel(source) {
@@ -2135,7 +2008,7 @@ async function fetchGoodebotReleaseBuildSources(limit = 20) {
   const sources = [];
   for (const release of releases) {
     const tagName = typeof release.tag_name === "string" ? release.tag_name : "";
-    if (!tagName.startsWith("goodebot-")) {
+    if (!isPublicGoodebotReleaseTag(tagName)) {
       continue;
     }
     const assets = Array.isArray(release.assets) ? release.assets : [];
@@ -2197,49 +2070,43 @@ async function fetchGoodebotReleaseBuildSources(limit = 20) {
 }
 
 async function chooseGoodebotInstallSource(title = "Choose Goodebot Build To Install") {
-  const state = collectStudioState();
-  const localSources = await vscode.window.withProgress(
+  let githubSources = [];
+  await vscode.window.withProgress(
     {
       location: vscode.ProgressLocation.Notification,
-      title: "Scanning this Mac for Goodebot build zips",
+      title: "Checking released Goodebot builds",
       cancellable: false,
     },
     async (progress) => {
-      progress.report({ message: "Checking Goodebot Dev dev/beta lanes and shared releases..." });
-      return findLocalGoodebotBuildSources(state.workspaceRoot);
+      progress.report({ message: "Reading Goodebot releases from GitHub..." });
+      try {
+        githubSources = await fetchGoodebotReleaseBuildSources();
+      } catch {
+        githubSources = [];
+      }
     }
   );
 
-  let githubSources = [];
-  try {
-    githubSources = await fetchGoodebotReleaseBuildSources();
-  } catch {
-    githubSources = [];
-  }
-
   const items = [];
-  if (localSources.length) {
-    items.push({ label: "Goodebot Dev local lanes", kind: vscode.QuickPickItemKind.Separator });
-    for (const source of localSources.slice(0, 24)) {
-      const modified = source.modifiedTime ? new Date(source.modifiedTime).toLocaleString() : "unknown modified time";
-      items.push({
-        label: goodebotPickerLabel(source, "$(file-zip)"),
-        description: path.basename(source.path),
-        detail: `${source.path}\nModified ${modified}`,
-        source,
-      });
-    }
-  }
   if (githubSources.length) {
-    items.push({ label: "Shared Goodebot builds from GitHub", kind: vscode.QuickPickItemKind.Separator });
-    for (const source of githubSources) {
+    const makeItem = (source, labelPrefix = "$(cloud-download)") => {
       const published = source.modifiedTime ? new Date(source.modifiedTime).toLocaleString() : "unknown publish time";
-      items.push({
-        label: goodebotPickerLabel(source, "$(cloud-download)"),
+      return {
+        label: goodebotPickerLabel(source, labelPrefix),
         description: source.assetName,
         detail: `${source.htmlUrl}\nPublished ${published}`,
         source,
-      });
+      };
+    };
+
+    items.push({ label: "Latest Release", kind: vscode.QuickPickItemKind.Separator });
+    items.push(makeItem(githubSources[0], "$(cloud-download)"));
+
+    if (githubSources.length > 1) {
+      items.push({ label: "Previous Releases", kind: vscode.QuickPickItemKind.Separator });
+      for (const source of githubSources.slice(1)) {
+        items.push(makeItem(source, "$(history)"));
+      }
     }
   }
 
@@ -2249,7 +2116,7 @@ async function chooseGoodebotInstallSource(title = "Choose Goodebot Build To Ins
 
   const choice = await vscode.window.showQuickPick(items, {
     title,
-    placeHolder: "Pick the exact Goodebot build VS Code should install",
+    placeHolder: "Pick the released Goodebot build VS Code should install",
     matchOnDescription: true,
     matchOnDetail: true,
     ignoreFocusOut: true,
@@ -2271,7 +2138,7 @@ async function openInstalledGoodebot() {
   if (!install) {
     const source = await chooseGoodebotInstallSource();
     if (!source) {
-      await vscode.window.showWarningMessage("No Goodebot build zip was found. Download or create a dev build first.");
+      await vscode.window.showWarningMessage("No released Goodebot build was found on GitHub.");
       return;
     }
     await installGoodebotForMacWithOptions({ forceRedownload: true, installSource: source });
@@ -2309,7 +2176,7 @@ async function reinstallGoodebotForMac() {
 
   const source = await chooseGoodebotInstallSource();
   if (!source) {
-    await vscode.window.showWarningMessage("No Goodebot build zip was found. Download or create a dev build first.");
+    await vscode.window.showWarningMessage("No released Goodebot build was found on GitHub.");
     return;
   }
   await installGoodebotForMacWithOptions({ forceRedownload: true, installSource: source });
@@ -2332,7 +2199,7 @@ async function updateGoodebotForMac() {
     if (choice === "Choose Build") {
       const source = await chooseGoodebotInstallSource();
       if (!source) {
-        await vscode.window.showWarningMessage("No Goodebot build zip was found. Download or create a dev build first.");
+        await vscode.window.showWarningMessage("No released Goodebot build was found on GitHub.");
         return;
       }
       await installGoodebotForMacWithOptions({
@@ -2355,7 +2222,7 @@ async function updateGoodebotForMac() {
   const source = await chooseGoodebotInstallSource();
   if (!source) {
     const choice = await vscode.window.showWarningMessage(
-      "No local or shared Goodebot build zip was found. Open the downloads page?",
+      "No released Goodebot build was found on GitHub. Open the downloads page?",
       "Open Downloads"
     );
     if (choice === "Open Downloads") {
@@ -2422,88 +2289,6 @@ async function chooseGoodebotUpdateTarget() {
   });
 
   return choice?.app || null;
-}
-
-async function downloadGoodebotDevWithPassword(providedPassword) {
-  if (process.platform !== "darwin") {
-    await vscode.window.showWarningMessage("Goodebot Dev downloads are currently for macOS only.");
-    return;
-  }
-
-  const password = typeof providedPassword === "string"
-    ? providedPassword
-    : await vscode.window.showInputBox({
-        title: "Download Goodebot Dev",
-        prompt: "Enter the Goodebot Dev download password.",
-        password: true,
-        ignoreFocusOut: true,
-        validateInput: (value) => value ? null : "Enter the password.",
-      });
-
-  if (password === undefined) {
-    return;
-  }
-
-  if (password !== GOODEBOT_DEV_DOWNLOAD_PASSWORD) {
-    await vscode.window.showErrorMessage("Incorrect Goodebot Dev password.");
-    return;
-  }
-
-  await vscode.window.withProgress(
-    {
-      location: vscode.ProgressLocation.Notification,
-      title: "Downloading Goodebot Dev",
-      cancellable: false,
-    },
-    async (progress) => {
-      progress.report({ message: "Finding the latest Goodebot Dev build..." });
-      const devRelease = await fetchLatestGoodebotDevRelease();
-      const downloadRoot = path.join(os.homedir(), "Downloads");
-      const targetPath = path.join(downloadRoot, devRelease?.assetName || "Goodebot-Dev-macOS.zip");
-
-      const localDevZip = findLocalGoodebotBuildSources()[0]?.path
-        || GOODEBOT_DEV_LOCAL_ZIPS.find((candidate) => pathExists(candidate));
-      if (!devRelease?.assetUrl && localDevZip) {
-        fs.mkdirSync(downloadRoot, { recursive: true });
-        fs.copyFileSync(localDevZip, targetPath);
-        const choice = await vscode.window.showInformationMessage(
-          `Goodebot Dev copied from the local dev folder to ${targetPath}`,
-          "Reveal Zip"
-        );
-        if (choice === "Reveal Zip") {
-          await revealPathInOS(targetPath);
-        }
-        return;
-      }
-
-      if (!devRelease?.assetUrl) {
-        const choice = await vscode.window.showWarningMessage(
-          "No Goodebot Dev zip asset was found in GitHub releases or the local dev folder.",
-          "Open Releases"
-        );
-        if (choice === "Open Releases") {
-          await vscode.env.openExternal(vscode.Uri.parse(DOWNLOAD_URL));
-        }
-        return;
-      }
-
-      progress.report({ message: `Downloading ${devRelease.assetName}...` });
-      await downloadFile(devRelease.assetUrl, targetPath);
-
-      const choice = await vscode.window.showInformationMessage(
-        `Goodebot Dev downloaded from ${devRelease.tagName || "release"} to ${targetPath}`,
-        "Reveal Zip",
-        "Open Releases"
-      );
-      if (choice === "Reveal Zip") {
-        await revealPathInOS(targetPath);
-      } else if (choice === "Open Releases") {
-        await vscode.env.openExternal(vscode.Uri.parse(devRelease.htmlUrl || DOWNLOAD_URL));
-      }
-    }
-  ).catch(async (error) => {
-    await vscode.window.showErrorMessage(`Goodebot Dev download failed: ${error.message}`);
-  });
 }
 
 async function installGoodebotForMacWithOptions(options) {
@@ -2574,16 +2359,19 @@ async function installGoodebotForMacWithOptions(options) {
         };
       }
       if (!resolvedSource) {
-        progress.report({ message: "Downloading the latest Goodebot build..." });
+        progress.report({ message: "Downloading the latest released Goodebot build..." });
+        const latestRelease = options.release || await fetchLatestGoodebotRelease();
         try {
-          await downloadFile(options.release?.zipUrl || DIRECT_DOWNLOAD_URL, downloadZipPath);
+          await downloadFile(latestRelease.zipUrl, downloadZipPath);
         } catch (error) {
           throw new Error(goodebotDownloadFailureMessage(error));
         }
         resolvedSource = {
           path: downloadZipPath,
-          label: path.basename(downloadZipPath),
+          label: latestRelease.name || latestRelease.tagName || path.basename(downloadZipPath),
           kind: "zip",
+          releaseTag: latestRelease.tagName || "",
+          originalUrl: latestRelease.zipUrl,
         };
       }
 
@@ -2652,38 +2440,10 @@ async function installGoodebotForMacWithOptions(options) {
   });
 }
 
-async function fetchLatestGoodebotDevRelease() {
-  const releases = await fetchJson(RELEASES_API_URL);
-  if (!Array.isArray(releases)) {
-    throw new Error("GitHub releases response was not a list.");
-  }
-
-  for (const release of releases) {
-    const assets = Array.isArray(release.assets) ? release.assets : [];
-    const asset = assets.find((candidate) => {
-      const name = String(candidate?.name || "");
-      return GOODEBOT_DEV_ASSET_NAMES.includes(name)
-        || /^V3\.\d+-Goodebot-dev-macOS\.zip$/i.test(name);
-    });
-    if (!asset?.browser_download_url) {
-      continue;
-    }
-    return {
-      tagName: typeof release.tag_name === "string" ? release.tag_name : "",
-      name: typeof release.name === "string" ? release.name : "",
-      htmlUrl: typeof release.html_url === "string" ? release.html_url : DOWNLOAD_URL,
-      assetName: asset.name,
-      assetUrl: asset.browser_download_url,
-    };
-  }
-
-  return null;
-}
-
 function goodebotDownloadFailureMessage(error) {
   const message = String(error?.message || "");
   if (message.includes("status 404") || message.includes("status 403")) {
-    return "Goodebot could not download a public Mac zip from GitHub. Put Goodebot-macOS.zip or Goodebot.app anywhere on this Mac, then click Install again.";
+    return "Goodebot could not download a released Mac zip from GitHub. Open the releases page, then try again.";
   }
   return message || "Goodebot download failed.";
 }
@@ -2698,7 +2458,7 @@ async function fetchLatestGoodebotRelease() {
     name: release.releaseName || release.label || "",
     htmlUrl: release.htmlUrl || DOWNLOAD_URL,
     publishedAt: release.modifiedTime ? new Date(release.modifiedTime).toISOString() : "",
-    zipUrl: release.assetUrl || release.path || DIRECT_DOWNLOAD_URL,
+    zipUrl: release.assetUrl || release.path || "",
   };
 }
 

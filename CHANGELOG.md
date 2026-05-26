@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.37
+
+- removes the public Goodebot Dev download command from Goodecode
+- limits the Goodebot install/update picker to released GitHub builds only
+- splits the picker into Latest Release and Previous Releases so old local/dev zips no longer appear
+
 ## 0.0.36
 
 - shows only numbered `V3.xx` Goodebot builds in the update picker
