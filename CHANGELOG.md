@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.41
+
+- marks older Goodebot profiles with the latest Goodebot version and `update available` in the profile picker
+- keeps updated profile apps in profile-launch mode so they reopen their saved robot data instead of the blank Create/Import screen
+- reuses preserved profile seeds after replacing the app bundle during update
+
 ## 0.0.40
 
 - makes `Open Goodebot` require choosing an existing robot profile or `New Profile`

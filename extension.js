@@ -2210,6 +2210,65 @@ function goodebotSourceSortValue(source) {
   return Number(source?.modifiedTime || 0);
 }
 
+function goodebotBuildStampSortValue(buildInfo, fallbackText = "") {
+  const stampText = [
+    buildInfo?.["GoodebotBuildStamp"] || "",
+    buildInfo?.["Build Stamp"] || "",
+    fallbackText || "",
+  ].join(" ");
+  const stamp = stampText.match(/20\d{12}|20\d{6}/)?.[0];
+  return stamp ? Number(stamp.padEnd(14, "0")) : 0;
+}
+
+function goodebotVersionSortValueFromToken(token) {
+  const versionMatch = String(token || "").match(/^V(\d+)(?:\.(\d+))?/i);
+  if (!versionMatch) {
+    return 0;
+  }
+  return Number(versionMatch[1]) * 100000 + Number(versionMatch[2] || 0);
+}
+
+function goodebotSourceBuildStampSortValue(source) {
+  return goodebotBuildStampSortValue(
+    source?.buildInfo || {},
+    [
+      source?.releaseTag || "",
+      source?.releaseName || "",
+      source?.label || "",
+      source?.assetName || "",
+      source?.buildRecord?.createdAt || "",
+    ].join(" ")
+  );
+}
+
+function goodebotProfileUpdateStatus(profile, latestSource) {
+  if (!profile || !latestSource) {
+    return { isOutdated: false, latestVersion: "" };
+  }
+
+  const latestVersion = goodebotArtifactVersionToken(latestSource);
+  const latestStamp = goodebotSourceBuildStampSortValue(latestSource);
+  const profileStamp = goodebotBuildStampSortValue(
+    profile.madeWithBuildInfo || {},
+    `${profile.madeWithVersion || ""} ${profile.sourceFolder || ""}`
+  );
+
+  if (latestStamp && profileStamp) {
+    return { isOutdated: profileStamp < latestStamp, latestVersion };
+  }
+
+  const latestVersionValue = goodebotVersionSortValueFromToken(latestVersion);
+  const profileVersionValue = goodebotVersionSortValueFromToken(goodebotArtifactVersionToken({
+    buildInfo: profile.madeWithBuildInfo || {},
+    label: profile.madeWithVersion || "",
+  }));
+  if (latestVersionValue && profileVersionValue) {
+    return { isOutdated: profileVersionValue < latestVersionValue, latestVersion };
+  }
+
+  return { isOutdated: true, latestVersion };
+}
+
 function detectInstalledGoodebotApp() {
   const home = os.homedir();
   const explicitCandidates = [
@@ -2396,6 +2455,7 @@ async function openInstalledGoodebot() {
 
 async function chooseGoodebotLaunchProfile() {
   const state = collectStudioState();
+  let latestReleaseSource = null;
   const profiles = await vscode.window.withProgress(
     {
       location: vscode.ProgressLocation.Notification,
@@ -2404,7 +2464,13 @@ async function chooseGoodebotLaunchProfile() {
     },
     async (progress) => {
       progress.report({ message: "Checking exported profile apps and saved Goodebot profile JSON files..." });
-      return scanMacForGoodebotProfiles(state.workspaceRoot);
+      const foundProfiles = scanMacForGoodebotProfiles(state.workspaceRoot);
+      try {
+        [latestReleaseSource] = await fetchGoodebotReleaseBuildSources(1);
+      } catch {
+        latestReleaseSource = null;
+      }
+      return foundProfiles;
     }
   );
 
@@ -2420,7 +2486,7 @@ async function chooseGoodebotLaunchProfile() {
   if (profiles.length) {
     items.push({ label: "Existing Profiles", kind: vscode.QuickPickItemKind.Separator });
     for (const profile of profiles) {
-      items.push(goodebotProfileQuickPickItem(profile, { choiceKind: "profile" }));
+      items.push(goodebotProfileQuickPickItem(profile, { choiceKind: "profile", latestSource: latestReleaseSource }));
     }
   }
 
@@ -2439,13 +2505,20 @@ function goodebotProfileQuickPickItem(profile, options = {}) {
   const version = `v${profile.schemaVersion}`;
   const sourceKind = profile.appBundlePath ? "profile app" : "profile json";
   const madeWith = profile.madeWithVersion || "unknown Goodebot version";
+  const updateStatus = goodebotProfileUpdateStatus(profile, options.latestSource);
+  const updateText = updateStatus.isOutdated && updateStatus.latestVersion
+    ? ` • ${updateStatus.latestVersion} update available`
+    : "";
+  const updateDetail = updateStatus.isOutdated && updateStatus.latestVersion
+    ? `\nUpdate available: ${updateStatus.latestVersion}.`
+    : "";
   const upgrade = profile.migratedFromSchemaVersion
     ? `\nLegacy profile v${profile.migratedFromSchemaVersion} will be upgraded to ${version}.`
     : "";
   return {
-    label: `$(check) ${profile.name}`,
-    description: `${version} • made with ${madeWith}`,
-    detail: `${profile.sourceFolder}\n${sourceKind}${upgrade}`,
+    label: `${updateStatus.isOutdated ? "$(warning)" : "$(check)"} ${profile.name}`,
+    description: `${version} • made with ${madeWith}${updateText}`,
+    detail: `${profile.sourceFolder}\n${sourceKind}${updateDetail}${upgrade}`,
     profile,
     choice: { kind: options.choiceKind || "profile", profile },
   };
@@ -2468,6 +2541,8 @@ async function launchNewGoodebotProfile() {
 
 async function launchGoodebotProfile(profile) {
   if (profile?.appBundlePath && pathExists(profile.appBundlePath)) {
+    setGoodebotProfileLaunchMode(profile.appBundlePath);
+    await prepareMacAppForLaunch(profile.appBundlePath);
     await openTarget(profile.appBundlePath);
     return;
   }
@@ -2517,6 +2592,7 @@ async function createProfileLaunchApp(profile) {
     fs.writeFileSync(seedTarget, seedData);
   }
   setGoodebotAppDisplayName(launchAppPath, profile.name || appName);
+  setGoodebotProfileLaunchMode(launchAppPath);
   await prepareMacAppForLaunch(launchAppPath);
   return launchAppPath;
 }
@@ -2627,6 +2703,7 @@ async function updateGoodebotForMac() {
 
 async function chooseGoodebotUpdateProfile() {
   const state = collectStudioState();
+  let latestReleaseSource = null;
   const profiles = await vscode.window.withProgress(
     {
       location: vscode.ProgressLocation.Notification,
@@ -2635,7 +2712,13 @@ async function chooseGoodebotUpdateProfile() {
     },
     async (progress) => {
       progress.report({ message: "Checking exported profile apps and saved Goodebot profile JSON files..." });
-      return scanMacForGoodebotProfiles(state.workspaceRoot);
+      const foundProfiles = scanMacForGoodebotProfiles(state.workspaceRoot);
+      try {
+        [latestReleaseSource] = await fetchGoodebotReleaseBuildSources(1);
+      } catch {
+        latestReleaseSource = null;
+      }
+      return foundProfiles;
     }
   );
 
@@ -2643,7 +2726,10 @@ async function chooseGoodebotUpdateProfile() {
     return null;
   }
 
-  const items = profiles.map((profile) => goodebotProfileQuickPickItem(profile, { choiceKind: "profile" }));
+  const items = profiles.map((profile) => goodebotProfileQuickPickItem(profile, {
+    choiceKind: "profile",
+    latestSource: latestReleaseSource,
+  }));
 
   const choice = await vscode.window.showQuickPick(items, {
     title: "Choose Goodebot Profile To Update",
@@ -2844,6 +2930,7 @@ function restoreGoodebotProfileResources(targetAppPath, preserved) {
   if (preserved.name && pathExists(infoPlist)) {
     setGoodebotAppDisplayName(targetAppPath, preserved.name);
   }
+  setGoodebotProfileLaunchMode(targetAppPath);
 }
 
 function setGoodebotAppDisplayName(appPath, displayName) {
@@ -2869,6 +2956,31 @@ function setGoodebotAppDisplayName(appPath, displayName) {
       } catch {
         // Display name preservation is helpful, but the profile seed is the critical data.
       }
+    }
+  }
+}
+
+function setGoodebotProfileLaunchMode(appPath) {
+  const infoPlist = path.join(appPath, "Contents", "Info.plist");
+  if (process.platform !== "darwin" || !pathExists(infoPlist)) {
+    return;
+  }
+
+  try {
+    childProcess.execFileSync(
+      "/usr/libexec/PlistBuddy",
+      ["-c", "Set :GoodebotForceCreateImportLaunch false", infoPlist],
+      { stdio: "ignore", timeout: 1000 }
+    );
+  } catch {
+    try {
+      childProcess.execFileSync(
+        "/usr/libexec/PlistBuddy",
+        ["-c", "Add :GoodebotForceCreateImportLaunch bool false", infoPlist],
+        { stdio: "ignore", timeout: 1000 }
+      );
+    } catch {
+      // Profile launch mode is a convenience flag; the bundled seed remains the source of truth.
     }
   }
 }
