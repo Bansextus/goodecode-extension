@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.0.39
+
+- shows the Goodebot app/build version each scanned robot profile was made with
+- keeps schema version separate from the made-with Goodebot version in the update profile picker
+
+## 0.0.38
+
+- changes the Goodebot update picker to scan robot profiles instead of `Goodebot.app` copies
+- shows exported profile apps and saved profile JSONs with profile name, path, schema version, and legacy upgrade notes
+- preserves the selected profile seed and branding files when replacing a standalone profile app with a released Goodebot build
+
 ## 0.0.37
 
 - removes the public Goodebot Dev download command from Goodecode
